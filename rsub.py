@@ -138,6 +138,9 @@ class Session:
         # This is mostly useful to obtain the path of this file on the server
         view.settings().set('rsub', self.env)
 
+        # Add a indicator to the status bar to indicate this is a remote file
+        view.set_status('rsub_presence', u"🔴")
+
         # Add the session to the global list
         SESSIONS[view.id()] = self
 
