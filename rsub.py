@@ -68,22 +68,37 @@ class Session:
             self.file += line
 
     def close(self):
-        self.socket.send(b"close\n")
-        self.socket.send(b"token: " + self.env['token'].encode("utf8") + b"\n")
-        self.socket.send(b"\n")
-        self.socket.shutdown(socket.SHUT_RDWR)
-        self.socket.close()
+        self.send(b"close\n")
+        self.send(b"token: " + self.env['token'].encode("utf8") + b"\n")
+        self.send(b"\n")
+        if self.socket:
+            self.socket.shutdown(socket.SHUT_RDWR)
+            self.socket.close()
+            self.terminate()
+
+    def terminate(self):
+        self.socket = None
         os.unlink(self.temp_path)
         os.rmdir(self.temp_dir)
+        view = sublime.active_window().run_command("close")
 
     def send_save(self):
-        self.socket.send(b"save\n")
-        self.socket.send(b"token: " + self.env['token'].encode("utf8") + b"\n")
         with open(self.temp_path, 'rb') as f:
             new_file = f.read()
-        self.socket.send(b"data: " + str(len(new_file)).encode("utf8") + b"\n")
-        self.socket.send(new_file)
-        self.socket.send(b"\n")
+        self.send(b"save\n")
+        self.send(b"token: " + self.env['token'].encode("utf8") + b"\n")
+        self.send(b"data: " + str(len(new_file)).encode("utf8") + b"\n")
+        self.send(new_file)
+        self.send(b"\n")
+
+    def send(self, data):
+        if not self.socket:
+            say("socket is broken, can't send data")
+            return
+
+        sent = self.socket.send(data)
+        if sent == 0:
+            raise RuntimeError("socket connection was broken")
 
     def on_done(self):
         # Create a secure temporary directory, both for privacy and to allow
@@ -150,6 +165,8 @@ class ConnectionHandler(socketserver.BaseRequestHandler):
         socket_fd = self.request.makefile('rb')
         for line in iter(socket_fd.readline, b''):
             session.parse_input(line)
+
+        session.terminate()
 
         say('Connection close.')
 
