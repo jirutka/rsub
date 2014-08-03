@@ -68,19 +68,29 @@ class Session:
             self.file += line
 
     def close(self):
-        self.send(b"close\n")
-        self.send(b"token: " + self.env['token'].encode("utf8") + b"\n")
-        self.send(b"\n")
         if self.socket:
-            self.socket.shutdown(socket.SHUT_RDWR)
-            self.socket.close()
-            self.terminate()
+            say("Closing connection...")
+            self.send(b"close\n")
+            self.send(b"token: " + self.env['token'].encode("utf8") + b"\n")
+            self.send(b"\n")
+            try:
+                self.socket.shutdown(socket.SHUT_RDWR)
+                self.socket.close()
+            except OSError:
+                say("Can't shutdown socket, it's already gone")
+            self.socket = None
 
     def terminate(self):
-        self.socket = None
+        for window in sublime.windows():
+            view = window.find_open_file(self.temp_path)
+            if view:
+                say("Closing view for file: %s" % self.temp_path)
+                window.focus_view(view)
+                window.run_command("close_file")
+
+        say("Removing temporary files on disk: %s" % self.temp_dir)
         os.unlink(self.temp_path)
         os.rmdir(self.temp_dir)
-        view = sublime.active_window().run_command("close")
 
     def send_save(self):
         with open(self.temp_path, 'rb') as f:
@@ -96,9 +106,14 @@ class Session:
             say("socket is broken, can't send data")
             return
 
-        sent = self.socket.send(data)
-        if sent == 0:
-            raise RuntimeError("socket connection was broken")
+        error_msg = 'Socket connection to the rsub client is broken!'
+        try:
+            sent = self.socket.send(data)
+            if sent == 0:
+                say(error_msg)
+        except OSError:
+            say(error_msg)
+
 
     def on_done(self):
         # Create a secure temporary directory, both for privacy and to allow
@@ -160,10 +175,10 @@ class Session:
 class ConnectionHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
-        say('New connection from ' + str(self.client_address))
+        say('New connection from %s' % str(self.client_address))
 
         session = Session(self.request)
-        self.request.send(b"Sublime Text 2 (rsub plugin)\n")
+        self.request.send(b"Sublime Text (rsub plugin)\n")
 
         socket_fd = self.request.makefile('rb')
         for line in iter(socket_fd.readline, b''):
@@ -171,7 +186,7 @@ class ConnectionHandler(socketserver.BaseRequestHandler):
 
         session.terminate()
 
-        say('Connection close.')
+        say('Connection from %s is done.' % str(self.client_address))
 
 
 class TCPServer(socketserver.ThreadingTCPServer):
