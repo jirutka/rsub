@@ -69,17 +69,19 @@ class Session:
             self.file += line
 
     def close(self):
-        if self.socket:
-            say("Closing connection...")
-            self.send(b"close\n")
-            self.send(b"token: " + self.env['token'].encode("utf8") + b"\n")
-            self.send(b"\n")
-            try:
-                self.socket.shutdown(socket.SHUT_RDWR)
-                self.socket.close()
-            except OSError:
-                say("Can't shutdown socket, it's already gone")
-            self.socket = None
+        if not self.socket:
+            return
+
+        say("Closing connection...")
+        for line in ["close", "token: " + self.env['token'], ""]:
+            self.send(line + "\n")
+        try:
+            self.socket.shutdown(socket.SHUT_RDWR)
+            self.socket.close()
+        except OSError:
+            say("Can't shutdown socket, it's already gone")
+
+        self.socket = None
 
     def terminate(self):
         for window in sublime.windows():
@@ -96,25 +98,22 @@ class Session:
     def send_save(self):
         with open(self.temp_path, 'rb') as f:
             new_file = f.read()
-        self.send(b"save\n")
-        self.send(b"token: " + self.env['token'].encode("utf8") + b"\n")
-        self.send(b"data: " + str(len(new_file)).encode("utf8") + b"\n")
+        for line in ["save", "token: " + self.env['token'], "data: %d" % len(new_file)]:
+            self.send(line + "\n")
         self.send(new_file)
-        self.send(b"\n")
+        self.send("\n")
 
     def send(self, data):
-        if not self.socket:
-            say("socket is broken, can't send data")
-            return
-
-        error_msg = 'Socket connection to the rsub client is broken!'
-        try:
-            sent = self.socket.send(data)
-            if sent == 0:
-                say(error_msg)
-        except OSError:
-            say(error_msg)
-
+        if self.socket:
+            try:
+                if not isinstance(data, bytes):
+                    data = data.encode('utf8')
+                sent = self.socket.send(data)
+                if sent != 0:
+                    return  # OK
+            except OSError:
+                pass
+        say("Socket connection to the rsub client is broken!")
 
     def on_done(self):
         # Create a secure temporary directory, both for privacy and to allow
@@ -232,7 +231,7 @@ def plugin_loaded():
     # Start server thread
     server = TCPServer((host, port), ConnectionHandler)
     Thread(target=start_server, args=[]).start()
-    say('Server running on ' + host + ':' + str(port) + '...')
+    say("Server running on %s:%s..." % (host, str(port)))
 
 
 # call the plugin_loaded() function if running in sublime text 2
