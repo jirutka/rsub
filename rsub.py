@@ -147,11 +147,8 @@ class ConnectionHandler(socketserver.BaseRequestHandler):
         session = Session(self.request)
         self.request.send(b"Sublime Text 2 (rsub plugin)\n")
 
-        socket_fd = self.request.makefile("rb")
-        while True:
-            line = socket_fd.readline()
-            if len(line) == 0:
-                break
+        socket_fd = self.request.makefile('rb')
+        for line in iter(socket_fd.readline, b''):
             session.parse_input(line)
 
         say('Connection close.')
