@@ -100,7 +100,6 @@ class Session:
         try:
             temp_file = open(self.temp_path, "wb+")
             temp_file.write(self.file[:self.file_size])
-            temp_file.flush()
             temp_file.close()
         except IOError as e:
             # Remove the file if it exists.
