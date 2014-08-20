@@ -108,8 +108,8 @@ class Session:
             try:
                 if not isinstance(data, bytes):
                     data = data.encode('utf8')
-                sent = self.socket.send(data)
-                if sent != 0:
+                sent_bytes = self.socket.send(data)
+                if sent_bytes == len(data):
                     return  # OK
             except OSError:
                 pass
