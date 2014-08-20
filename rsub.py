@@ -79,9 +79,8 @@ class Session:
     def send_save(self):
         self.socket.send(b"save\n")
         self.socket.send(b"token: " + self.env['token'].encode("utf8") + b"\n")
-        temp_file = open(self.temp_path, "rb")
-        new_file = temp_file.read()
-        temp_file.close()
+        with open(self.temp_path, 'rb') as f:
+            new_file = f.read()
         self.socket.send(b"data: " + str(len(new_file)).encode("utf8") + b"\n")
         self.socket.send(new_file)
         self.socket.send(b"\n")
