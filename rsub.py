@@ -28,6 +28,7 @@ def say(msg):
 
 
 class Session:
+
     def __init__(self, socket):
         self.env = {}
         self.file = b""
@@ -38,10 +39,10 @@ class Session:
         self.temp_path = None
 
     def parse_input(self, input_line):
-        if (input_line.strip() == b"open" or self.parse_done is True):
+        if input_line.strip() == b"open" or self.parse_done:
             return
 
-        if(self.in_file is False):
+        if not self.in_file:
             input_line = input_line.decode("utf8").strip()
             if (input_line == ""):
                 return
@@ -49,7 +50,7 @@ class Session:
                 self.parse_file(b".\n")
                 return
             k, v = input_line.split(":", 1)
-            if (k == "data"):
+            if k == "data":
                 self.file_size = int(v)
                 if len(self.env) > 1:
                     self.in_file = True
@@ -59,7 +60,7 @@ class Session:
             self.parse_file(input_line)
 
     def parse_file(self, line):
-        if(len(self.file) >= self.file_size and line == b".\n"):
+        if len(self.file) >= self.file_size and line == b".\n":
             self.in_file = False
             self.parse_done = True
             sublime.set_timeout(self.on_done, 0)
@@ -128,19 +129,20 @@ class Session:
         SESSIONS[view.id()] = self
 
         # Bring sublime to front
-        if(sublime.platform() == 'osx'):
-            if(SBApplication):
+        if sublime.platform() == 'osx':
+            if SBApplication:
                 subl_window = SBApplication.applicationWithBundleIdentifier_("com.sublimetext.2")
                 subl_window.activate()
             else:
                 os.system('/usr/bin/osascript -e '
                           '\'tell app "Finder" to set frontmost of process "Sublime Text" to true\'')
-        elif(sublime.platform() == 'linux'):
+        elif sublime.platform() == 'linux':
             import subprocess
             subprocess.call("wmctrl -xa 'sublime_text.sublime-text-2'", shell=True)
 
 
 class ConnectionHandler(socketserver.BaseRequestHandler):
+
     def handle(self):
         say('New connection from ' + str(self.client_address))
 
@@ -150,7 +152,7 @@ class ConnectionHandler(socketserver.BaseRequestHandler):
         socket_fd = self.request.makefile("rb")
         while True:
             line = socket_fd.readline()
-            if(len(line) == 0):
+            if len(line) == 0:
                 break
             session.parse_input(line)
 
@@ -174,14 +176,15 @@ def unload_handler():
 
 
 class RSubEventListener(sublime_plugin.EventListener):
+
     def on_post_save(self, view):
-        if (view.id() in SESSIONS):
+        if view.id() in SESSIONS:
             sess = SESSIONS[view.id()]
             sess.send_save()
             say('Saved ' + sess.env['display-name'])
 
     def on_close(self, view):
-        if(view.id() in SESSIONS):
+        if view.id() in SESSIONS:
             sess = SESSIONS.pop(view.id())
             sess.close()
             say('Closed ' + sess.env['display-name'])
@@ -202,5 +205,5 @@ def plugin_loaded():
 
 
 # call the plugin_loaded() function if running in sublime text 2
-if (int(sublime.version()) < 3000):
+if int(sublime.version()) < 3000:
     plugin_loaded()
