@@ -87,7 +87,8 @@ class Session:
         for window in sublime.windows():
             view = window.find_open_file(self.temp_path)
             if view:
-                view.set_status('rsub_status', "rsub: connection broken")
+                hostname = self.env['display-name'].split(':')[0]
+                view.set_status('rsub_status', "rsub: connection to %s lost" % hostname)
                 title = view.name() or os.path.basename(view.file_name())
                 view.set_name(u"❗" + title)
 
@@ -155,6 +156,9 @@ class Session:
 
         # Add a indicator to the status bar to indicate this is a remote file
         view.set_status('rsub_presence', u"🔴")
+
+        # Add remote hostname to the status bar
+        view.set_status('rsub_status', "rsub: " + self.env['display-name'].split(':')[0])
 
         # Add the session to the global list
         SESSIONS[view.id()] = self
