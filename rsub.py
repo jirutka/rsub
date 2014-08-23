@@ -87,9 +87,9 @@ class Session:
         for window in sublime.windows():
             view = window.find_open_file(self.temp_path)
             if view:
-                say("Closing view for file: %s" % self.temp_path)
-                window.focus_view(view)
-                window.run_command("close_file")
+                view.set_status('rsub_status', "rsub: connection broken")
+                title = view.name() or os.path.basename(view.file_name())
+                view.set_name(u"❗" + title)
 
         say("Removing temporary files on disk: %s" % self.temp_dir)
         os.unlink(self.temp_path)
