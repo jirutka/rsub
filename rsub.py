@@ -5,6 +5,8 @@ import os
 import socket
 import sys
 import tempfile
+import xml.etree.ElementTree as ET
+from io import StringIO
 from sublime import ENCODED_POSITION
 from threading import Thread
 try:
@@ -23,6 +25,7 @@ Double line breaks on Windows.
 
 SESSIONS = {}
 server = None
+syntaxes = None
 
 
 def say(msg):
@@ -228,6 +231,48 @@ class RSubEventListener(sublime_plugin.EventListener):
             sess = SESSIONS.pop(view.id())
             sess.close()
             say('Closed ' + sess.env['display-name'])
+
+    def on_load(self, view):
+        if view.id() in SESSIONS:
+            sess = SESSIONS[view.id()]
+            file_type = sess.env.get('file-type', None)
+            if file_type:
+                syntax = syntax_for_file_type(file_type)
+                if syntax:
+                    view.set_syntax_file(syntax)
+
+
+def collect_syntax_file_types():
+    """ Scan all tmLanguage resources and collect map of file type extensions.
+    :returns: dict {file type : package path}
+    """
+    say("Collecting file type extensions of syntaxes")
+    result = {}
+
+    for path in sublime.find_resources("*.tmLanguage"):
+        plist = sublime.load_resource(path)
+        try:
+            in_filetypes = False
+            for _, elem in ET.iterparse(StringIO(plist)):
+                if elem.tag == 'key' and elem.text == 'fileTypes':
+                    in_filetypes = True
+                elif in_filetypes and elem.tag == 'string':
+                    result[elem.text] = path
+                elif in_filetypes and elem.tag == 'key':
+                    break
+        except:
+            say("Failed to parse " + path)
+    return result
+
+
+def syntax_for_file_type(file_type):
+    """ Find syntax file for the given file type extension. Initialize global
+    variable `syntaxes` if used for the first time.
+    """
+    global syntaxes
+    if not syntaxes:
+        syntaxes = collect_syntax_file_types()
+    return syntaxes.get(file_type, None)
 
 
 def plugin_loaded():
