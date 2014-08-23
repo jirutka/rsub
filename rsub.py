@@ -264,6 +264,7 @@ def syntax_for_file_type(file_type):
 
 
 def plugin_loaded():
+    """ Called by Sublime when the plugin is loaded. """
     global server
 
     # Load settings
@@ -277,7 +278,8 @@ def plugin_loaded():
     say("Server running on %s:%d..." % (host, port))
 
 
-def unload_handler():
+def plugin_unloaded():
+    """ Called by Sublime just before the plugin is unloaded. """
     global server
     say('Killing server...')
     if server:
