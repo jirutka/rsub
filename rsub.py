@@ -5,6 +5,7 @@ import os
 import socket
 import sys
 import tempfile
+from sublime import ENCODED_POSITION
 from threading import Thread
 try:
     import socketserver
@@ -147,8 +148,13 @@ class Session:
         if len(sublime.windows()) == 0:
             sublime.run_command("new_window")
 
-        # Open it within sublime
-        view = sublime.active_window().open_file(self.temp_path)
+        line = self.env.get('selection', 0)
+
+        # Open file within sublime, at provided line number if specified
+        if line and line.isdigit():
+            view = sublime.active_window().open_file(self.temp_path + ':' + line, ENCODED_POSITION)
+        else:
+            view = sublime.active_window().open_file(self.temp_path)
 
         # Add the file metadata to the view's settings
         # This is mostly useful to obtain the path of this file on the server
