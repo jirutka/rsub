@@ -28,10 +28,6 @@ server = None
 syntaxes = None
 
 
-def say(msg):
-    print('[rsub] ' + msg)
-
-
 class Session:
 
     def __init__(self, socket):
@@ -206,18 +202,6 @@ class TCPServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
 
 
-def start_server():
-    server.serve_forever()
-
-
-def unload_handler():
-    global server
-    say('Killing server...')
-    if server:
-        server.shutdown()
-        server.server_close()
-
-
 class RSubEventListener(sublime_plugin.EventListener):
 
     def on_post_save(self, view):
@@ -240,6 +224,10 @@ class RSubEventListener(sublime_plugin.EventListener):
                 syntax = syntax_for_file_type(file_type)
                 if syntax:
                     view.set_syntax_file(syntax)
+
+
+def say(msg):
+    print('[rsub] ' + msg)
 
 
 def collect_syntax_file_types():
@@ -276,7 +264,7 @@ def syntax_for_file_type(file_type):
 
 
 def plugin_loaded():
-    global SESSIONS, server
+    global server
 
     # Load settings
     settings = sublime.load_settings("rsub.sublime-settings")
@@ -285,8 +273,16 @@ def plugin_loaded():
 
     # Start server thread
     server = TCPServer((host, port), ConnectionHandler)
-    Thread(target=start_server, args=[]).start()
-    say("Server running on %s:%s..." % (host, str(port)))
+    Thread(target=lambda: server.serve_forever(), args=[]).start()
+    say("Server running on %s:%d..." % (host, port))
+
+
+def unload_handler():
+    global server
+    say('Killing server...')
+    if server:
+        server.shutdown()
+        server.server_close()
 
 
 # call the plugin_loaded() function if running in sublime text 2
