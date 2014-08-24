@@ -38,32 +38,27 @@ class Session:
         self.temp_path = None
         self.view = None
 
-    def parse_input(self, input_line):
-        if input_line.strip() == b"open" or self.parse_done:
+    def parse_input(self, line):
+        if self.parse_done:
             return
 
-        if not self.in_file:
-            input_line = input_line.decode("utf8").strip()
-            if (input_line == ""):
+        elif not self.in_file:
+            line = line.decode('utf8').strip()
+            if line in ["", "open"]:
                 return
-            if (input_line == "."):
-                self.parse_file(b".\n")
-                return
-            k, v = input_line.split(":", 1)
+            k, v = line.split(":", 1)
             if k == "data":
                 self.file_size = int(v)
                 if len(self.env) > 1:
                     self.in_file = True
             else:
                 self.env[k] = v.strip()
-        else:
-            self.parse_file(input_line)
 
-    def parse_file(self, line):
-        if len(self.file) >= self.file_size and line == b".\n":
+        elif len(self.file) >= self.file_size and line == b".\n":
             self.in_file = False
             self.parse_done = True
             sublime.set_timeout(self.on_done, 0)
+
         else:
             self.file += line
 
