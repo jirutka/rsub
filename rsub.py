@@ -36,6 +36,7 @@ class Session:
         self.parse_done = False
         self.socket = socket
         self.temp_path = None
+        self.view = None
 
     def parse_input(self, input_line):
         if input_line.strip() == b"open" or self.parse_done:
@@ -67,19 +68,21 @@ class Session:
             self.file += line
 
     def close(self):
-        if not self.socket:
-            return
+        global sessions
 
-        say("Closing connection...")
-        for line in ["close", "token: " + self.env['token'], ""]:
-            self.send(line + "\n")
-        try:
-            self.socket.shutdown(socket.SHUT_RDWR)
-            self.socket.close()
-        except OSError:
-            say("Can't shutdown socket, it's already gone")
+        if self.socket:
+            say("Closing connection...")
+            for line in ["close", "token: " + self.env['token'], ""]:
+                self.send(line + "\n")
+            try:
+                self.socket.shutdown(socket.SHUT_RDWR)
+                self.socket.close()
+            except OSError:
+                say("Can't shutdown socket, it's already gone")
+            self.socket = None
 
-        self.socket = None
+        # Remove itself from the global list of sessions.
+        del sessions[self.view.id()]
 
     def terminate(self):
         for window in sublime.windows():
@@ -115,6 +118,8 @@ class Session:
         say("Socket connection to the rsub client is broken!")
 
     def on_done(self):
+        global sessions
+
         # Create a secure temporary directory, both for privacy and to allow
         # multiple files with the same basename to be edited at once without
         # overwriting each other.
@@ -166,6 +171,8 @@ class Session:
         # Add the session to the global list
         sessions[view.id()] = self
 
+        self.view = view
+
         bring_sublime_to_front()
 
 
@@ -206,7 +213,6 @@ class RSubEventListener(EventListener):
 
     @session
     def on_close(self, view, session):
-        sessions.pop(view.id())
         session.close()
         say('Closed ' + session.env['display-name'])
 
