@@ -1,18 +1,17 @@
 # encoding: utf8
-import sublime
-import sublime_plugin
 import os
 import socket
-import sys
+import sublime
 import tempfile
 import xml.etree.ElementTree as ET
 from io import StringIO
 from sublime import ENCODED_POSITION
+from sublime_plugin import EventListener
 from threading import Thread
 try:
-    import socketserver
+    from socketserver import BaseRequestHandler, ThreadingTCPServer
 except ImportError:
-    import SocketServer as socketserver
+    from SocketServer import BaseRequestHandler, ThreadingTCPServer
 try:
     from ScriptingBridge import SBApplication
 except ImportError:
@@ -181,7 +180,7 @@ class Session:
             subprocess.call("wmctrl -xa 'sublime_text.sublime-text-2'", shell=True)
 
 
-class ConnectionHandler(socketserver.BaseRequestHandler):
+class ConnectionHandler(BaseRequestHandler):
 
     def handle(self):
         say('New connection from %s' % str(self.client_address))
@@ -198,11 +197,11 @@ class ConnectionHandler(socketserver.BaseRequestHandler):
         say('Connection from %s is done.' % str(self.client_address))
 
 
-class TCPServer(socketserver.ThreadingTCPServer):
+class TCPServer(ThreadingTCPServer):
     allow_reuse_address = True
 
 
-class RSubEventListener(sublime_plugin.EventListener):
+class RSubEventListener(EventListener):
 
     def on_post_save(self, view):
         if view.id() in SESSIONS:
