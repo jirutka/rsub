@@ -2,6 +2,7 @@
 import os
 import socket
 import sublime
+import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
 from io import StringIO
@@ -12,15 +13,13 @@ try:
     from socketserver import BaseRequestHandler, ThreadingTCPServer
 except ImportError:
     from SocketServer import BaseRequestHandler, ThreadingTCPServer
-try:
-    from ScriptingBridge import SBApplication
-except ImportError:
-    SBApplication = None
 
 '''
 Problems:
 Double line breaks on Windows.
 '''
+
+ST_VERSION = int(int(sublime.version()) / 1000)
 
 sessions = {}
 server = None
@@ -167,17 +166,7 @@ class Session:
         # Add the session to the global list
         sessions[view.id()] = self
 
-        # Bring sublime to front
-        if sublime.platform() == 'osx':
-            if SBApplication:
-                subl_window = SBApplication.applicationWithBundleIdentifier_("com.sublimetext.2")
-                subl_window.activate()
-            else:
-                os.system('/usr/bin/osascript -e '
-                          '\'tell app "Finder" to set frontmost of process "Sublime Text" to true\'')
-        elif sublime.platform() == 'linux':
-            import subprocess
-            subprocess.call("wmctrl -xa 'sublime_text.sublime-text-2'", shell=True)
+        bring_sublime_to_front()
 
 
 class ConnectionHandler(BaseRequestHandler):
@@ -232,6 +221,19 @@ class RSubEventListener(EventListener):
 
 def say(msg):
     print('[rsub] ' + msg)
+
+
+def bring_sublime_to_front():
+    """ Tell Window Manager to bring Sublime Text window to front.
+    """
+    if sublime.platform() == 'osx':
+        name = "Sublime Text 2" if ST_VERSION == 2 else "Sublime Text"
+        os.system('/usr/bin/osascript -e '
+                  '\'tell app "Finder" to set frontmost of process "%s" to true\'' % name)
+
+    elif sublime.platform() == 'linux':
+        name = "sublime-text-2" if ST_VERSION == 2 else "sublime-text"
+        subprocess.call("wmctrl -xa 'sublime_text.%s'" % name, shell=True)
 
 
 def collect_syntax_file_types():
@@ -291,6 +293,5 @@ def plugin_unloaded():
         server.server_close()
 
 
-# call the plugin_loaded() function if running in sublime text 2
-if int(sublime.version()) < 3000:
+if ST_VERSION < 3:
     plugin_loaded()
