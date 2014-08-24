@@ -28,39 +28,13 @@ syntaxes = None
 
 class Session:
 
-    def __init__(self, socket):
-        self.env = {}
-        self.file = b""
-        self.file_size = 0
-        self.in_file = False
-        self.parse_done = False
+    def __init__(self, socket, variables, data):
         self.socket = socket
+        self.env = variables
+        self.file = data
         self.temp_path = None
         self.view = None
-
-    def parse_input(self, line):
-        if self.parse_done:
-            return
-
-        elif not self.in_file:
-            line = line.decode('utf8').strip()
-            if line in ["", "open"]:
-                return
-            k, v = line.split(":", 1)
-            if k == "data":
-                self.file_size = int(v)
-                if len(self.env) > 1:
-                    self.in_file = True
-            else:
-                self.env[k] = v.strip()
-
-        elif len(self.file) >= self.file_size and line == b".\n":
-            self.in_file = False
-            self.parse_done = True
-            sublime.set_timeout(self.on_done, 0)
-
-        else:
-            self.file += line
+        sublime.set_timeout(self.on_done, 0)
 
     def close(self):
         global sessions
@@ -128,7 +102,7 @@ class Session:
         self.temp_path = os.path.join(self.temp_dir, filename)
         try:
             temp_file = open(self.temp_path, "wb+")
-            temp_file.write(self.file[:self.file_size])
+            temp_file.write(self.file)
             temp_file.close()
         except IOError as e:
             # Remove the file if it exists.
@@ -174,18 +148,51 @@ class Session:
 class ConnectionHandler(BaseRequestHandler):
 
     def handle(self):
-        say('New connection from %s' % str(self.client_address))
+        """ Process incoming request from rsub client. This method is blocking,
+        when finished the connection is closed.
+        """
+        self.session = None
+        self.rfile = None
 
-        session = Session(self.request)
+        say("New connection from %s" % str(self.client_address))
         self.request.send(b"Sublime Text (rsub plugin)\n")
 
-        socket_fd = self.request.makefile('rb')
-        for line in iter(socket_fd.readline, b''):
-            session.parse_input(line)
+        # Create file object for reading from the socket.
+        self.rfile = self.request.makefile('rb')
 
-        session.terminate()
+        for line in self.readlines():
+            if line == 'open':
+                self.session = self.handle_open()
+            elif line == ".":
+                continue
+            else:
+                say("Unknown command: " + line)
 
-        say('Connection from %s is done.' % str(self.client_address))
+    def handle_open(self):
+        """ Handle open command; read data from socket and return Session. """
+        variables = {}
+        data = b""
+
+        for line in self.readlines():
+            if line == "":
+                break
+            name, value = (s.strip() for s in line.split(":", 1))
+            if name == 'data':
+                data += self.rfile.read(int(value))
+            else:
+                variables[name] = value
+
+        return Session(self.request, variables, data)
+
+    def finish(self):
+        say("Connection from %s is done." % str(self.client_address))
+        self.session.terminate()
+
+    def readlines(self):
+        """ Create generator that reads line by line from the socket, decodes
+        lines as UTF-8 and strips white spaces.
+        """
+        return (line.decode('utf8').strip() for line in self.rfile)
 
 
 class TCPServer(ThreadingTCPServer):
