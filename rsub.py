@@ -22,7 +22,7 @@ Problems:
 Double line breaks on Windows.
 '''
 
-SESSIONS = {}
+sessions = {}
 server = None
 syntaxes = None
 
@@ -165,7 +165,7 @@ class Session:
         view.set_status('rsub_status', "rsub: " + self.env['display-name'].split(':')[0])
 
         # Add the session to the global list
-        SESSIONS[view.id()] = self
+        sessions[view.id()] = self
 
         # Bring sublime to front
         if sublime.platform() == 'osx':
@@ -203,26 +203,31 @@ class TCPServer(ThreadingTCPServer):
 
 class RSubEventListener(EventListener):
 
-    def on_post_save(self, view):
-        if view.id() in SESSIONS:
-            sess = SESSIONS[view.id()]
-            sess.send_save()
-            say('Saved ' + sess.env['display-name'])
+    def session(func):
+        def on_event_wrap(obj, view):
+            global sessions
+            session = sessions.get(view.id(), None)
+            return func(obj, view, session) if session else None
+        return on_event_wrap
 
-    def on_close(self, view):
-        if view.id() in SESSIONS:
-            sess = SESSIONS.pop(view.id())
-            sess.close()
-            say('Closed ' + sess.env['display-name'])
+    @session
+    def on_post_save(self, view, session):
+        session.send_save()
+        say('Saved ' + session.env['display-name'])
 
-    def on_load(self, view):
-        if view.id() in SESSIONS:
-            sess = SESSIONS[view.id()]
-            file_type = sess.env.get('file-type', None)
-            if file_type:
-                syntax = syntax_for_file_type(file_type)
-                if syntax:
-                    view.set_syntax_file(syntax)
+    @session
+    def on_close(self, view, session):
+        sessions.pop(view.id())
+        session.close()
+        say('Closed ' + session.env['display-name'])
+
+    @session
+    def on_load(self, view, session):
+        file_type = session.env.get('file-type', None)
+        if file_type:
+            syntax = syntax_for_file_type(file_type)
+            if syntax:
+                view.set_syntax_file(syntax)
 
 
 def say(msg):
