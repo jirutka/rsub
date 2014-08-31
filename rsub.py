@@ -14,11 +14,6 @@ try:
 except ImportError:
     from SocketServer import BaseRequestHandler, ThreadingTCPServer
 
-'''
-Problems:
-Double line breaks on Windows.
-'''
-
 ST_VERSION = int(int(sublime.version()) / 1000)
 
 sessions = {}
@@ -148,8 +143,9 @@ class Session:
 class ConnectionHandler(BaseRequestHandler):
 
     def handle(self):
-        """ Process incoming request from rsub client. This method is blocking,
-        when finished the connection is closed.
+        """ Process incoming request from rsub client.
+
+        This method is blocking, when finished the connection is closed.
         """
         self.session = None
         self.rfile = None
@@ -189,8 +185,10 @@ class ConnectionHandler(BaseRequestHandler):
         self.session.terminate()
 
     def readlines(self):
-        """ Create generator that reads line by line from the socket, decodes
-        lines as UTF-8 and strips white spaces.
+        """ Read lines from the socket.
+
+        :returns: generator that reads line by line from the socket, decodes
+                  lines as UTF-8 and strips white spaces
         """
         return (line.decode('utf8').strip() for line in self.rfile)
 
@@ -232,8 +230,8 @@ def say(msg):
 
 
 def bring_sublime_to_front():
-    """ Tell Window Manager to bring Sublime Text window to front.
-    """
+    """ Tell Window Manager to bring Sublime Text window to front. """
+
     if sublime.platform() == 'osx':
         name = "Sublime Text 2" if ST_VERSION == 2 else "Sublime Text"
         os.system('/usr/bin/osascript -e '
@@ -246,6 +244,7 @@ def bring_sublime_to_front():
 
 def collect_syntax_file_types():
     """ Scan all tmLanguage resources and collect map of file type extensions.
+
     :returns: dict {file type : package path}
     """
     say("Collecting file type extensions of syntaxes")
@@ -268,8 +267,9 @@ def collect_syntax_file_types():
 
 
 def syntax_for_file_type(file_type):
-    """ Find syntax file for the given file type extension. Initialize global
-    variable `syntaxes` if used for the first time.
+    """ Find syntax file for the given file type extension.
+
+    It initializes global variable ``syntaxes`` if used for the first time.
     """
     global syntaxes
     if not syntaxes:
