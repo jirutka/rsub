@@ -16,6 +16,7 @@ except ImportError:
 
 ST_VERSION = int(int(sublime.version()) / 1000)
 
+debug_enabled = True
 sessions = {}
 server = None
 syntaxes = None
@@ -35,14 +36,14 @@ class Session:
         global sessions
 
         if self.socket:
-            say("Closing connection...")
+            debug("Closing connection with %s", self.env['display-name'])
             for line in ["close", "token: " + self.env['token'], ""]:
                 self.send(line + "\n")
             try:
                 self.socket.shutdown(socket.SHUT_RDWR)
                 self.socket.close()
             except OSError:
-                say("Can't shutdown socket, it's already gone")
+                debug("Can't shutdown socket, it's already gone")
             self.socket = None
 
         # Remove itself from the global list of sessions.
@@ -57,11 +58,12 @@ class Session:
                 title = view.name() or os.path.basename(view.file_name())
                 view.set_name(u"❗" + title)
 
-        say("Removing temporary files on disk: %s" % self.temp_dir)
+        debug("Removing temporary files on disk: %s", self.temp_dir)
         os.unlink(self.temp_path)
         os.rmdir(self.temp_dir)
 
     def send_save(self):
+        info("Saving %s", self.env['display-name'])
         with open(self.temp_path, 'rb') as f:
             new_file = f.read()
         for line in ["save", "token: " + self.env['token'], "data: %d" % len(new_file)]:
@@ -79,7 +81,7 @@ class Session:
                     return  # OK
             except OSError:
                 pass
-        say("Socket connection to the rsub client is broken!")
+        info("Socket connection to the rsub client is broken!")
 
     def on_done(self):
         global sessions
@@ -150,7 +152,7 @@ class ConnectionHandler(BaseRequestHandler):
         self.session = None
         self.rfile = None
 
-        say("New connection from %s" % str(self.client_address))
+        info("New connection from %s:%d", *self.client_address)
         self.request.send(b"Sublime Text (rsub plugin)\n")
 
         # Create file object for reading from the socket.
@@ -162,7 +164,7 @@ class ConnectionHandler(BaseRequestHandler):
             elif line == ".":
                 continue
             else:
-                say("Unknown command: " + line)
+                debug("Unknown command: %s", line)
 
     def handle_open(self):
         """ Handle open command; read data from socket and return Session. """
@@ -181,7 +183,7 @@ class ConnectionHandler(BaseRequestHandler):
         return Session(self.request, variables, data)
 
     def finish(self):
-        say("Connection from %s is done." % str(self.client_address))
+        info("Connection from %s:%d is done.", *self.client_address)
         self.session.terminate()
 
     def readlines(self):
@@ -209,12 +211,10 @@ class RSubEventListener(EventListener):
     @session
     def on_post_save(self, view, session):
         session.send_save()
-        say('Saved ' + session.env['display-name'])
 
     @session
     def on_close(self, view, session):
         session.close()
-        say('Closed ' + session.env['display-name'])
 
     @session
     def on_load(self, view, session):
@@ -223,10 +223,6 @@ class RSubEventListener(EventListener):
             syntax = syntax_for_file_type(file_type)
             if syntax:
                 view.set_syntax_file(syntax)
-
-
-def say(msg):
-    print('[rsub] ' + msg)
 
 
 def bring_sublime_to_front():
@@ -247,7 +243,7 @@ def collect_syntax_file_types():
 
     :returns: dict {file type : package path}
     """
-    say("Collecting file type extensions of syntaxes")
+    debug("Collecting file type extensions of syntaxes.")
     result = {}
 
     for path in sublime.find_resources("*.tmLanguage"):
@@ -262,7 +258,7 @@ def collect_syntax_file_types():
                 elif in_filetypes and elem.tag == 'key':
                     break
         except:
-            say("Failed to parse " + path)
+            debug("Failed to parse %s", path)
     return result
 
 
@@ -277,25 +273,36 @@ def syntax_for_file_type(file_type):
     return syntaxes.get(file_type, None)
 
 
+def debug(message, *args):
+    global debug_enabled
+    if debug_enabled:
+        info(message, *args)
+
+
+def info(message, *args):
+    print("[rsub] " + message % args)
+
+
 def plugin_loaded():
     """ Called by Sublime when the plugin is loaded. """
-    global server
+    global server, debug_enabled
 
     # Load settings
     settings = sublime.load_settings("rsub.sublime-settings")
-    port = settings.get("port", 52698)
-    host = settings.get("host", "localhost")
+    port = settings.get('port', 52698)
+    host = settings.get('host', "localhost")
+    debug_enabled = settings.get('debug', False)
 
     # Start server thread
     server = TCPServer((host, port), ConnectionHandler)
     Thread(target=lambda: server.serve_forever(), args=[]).start()
-    say("Server running on %s:%d..." % (host, port))
+    info("Server running on %s:%d", host, port)
 
 
 def plugin_unloaded():
     """ Called by Sublime just before the plugin is unloaded. """
     global server
-    say('Killing server...')
+    info("Killing server...")
     if server:
         server.shutdown()
         server.server_close()
