@@ -202,6 +202,12 @@ class TCPServer(ThreadingTCPServer):
 class RSubEventListener(EventListener):
 
     def session(func):
+        """ Decorator for listener's methods that accepts :class:`sublime.View`.
+
+        If there's a session for the given ``view``, then the decorated method
+        is called and the session is added to the arguments list. Otherwise the
+        method is not called at all.
+        """
         def on_event_wrap(obj, view):
             global sessions
             session = sessions.get(view.id(), None)
