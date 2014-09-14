@@ -68,15 +68,14 @@ class Session:
 
         # Remove itself from the global list of sessions.
         del sessions[self.view.id()]
+        self.view = None
 
     def terminate(self):
-        for window in sublime.windows():
-            view = window.find_open_file(self.temp_path)
-            if view:
-                hostname = self.env['display-name'].split(':')[0]
-                view.set_status('rsub_status', "rsub: connection to %s lost" % hostname)
-                title = view.name() or os.path.basename(view.file_name())
-                view.set_name(u"❗" + title)
+        if self.view:
+            hostname = self.env['display-name'].split(':')[0]
+            self.view.set_status('rsub_status', "rsub: connection to %s lost" % hostname)
+            title = self.view.name() or os.path.basename(self.view.file_name())
+            self.view.set_name(u"❗" + title)
 
         debug("Removing temporary files on disk: %s", self.temp_path)
         os.unlink(self.temp_path)
