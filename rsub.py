@@ -1,5 +1,6 @@
 # encoding: utf8
 import os
+import shutil
 import socket
 import sublime
 import subprocess
@@ -27,10 +28,29 @@ class Session:
     def __init__(self, socket, variables, data):
         self.socket = socket
         self.env = variables
-        self.file = data
-        self.temp_path = None
         self.view = None
-        sublime.set_timeout(self.on_done, 0)
+
+        # Create a secure temporary directory, both for privacy and to allow
+        # multiple files with the same basename to be edited at once without
+        # overwriting each other.
+        try:
+            temp_dir = tempfile.mkdtemp(prefix="rsub-")
+        except OSError as e:
+            sublime.error_message("Failed to create rsub temporary directory!")
+            raise e
+
+        filename = os.path.basename(variables['display-name'].split(':')[-1])
+        temp_path = os.path.join(temp_dir, filename)
+        try:
+            with open(temp_path, 'wb+') as f:
+                f.write(data)
+        except IOError as e:
+            sublime.error_message("Failed to write file: %s" % temp_path)
+            shutil.rmtree(temp_dir, True)
+            raise e
+
+        self.temp_path = temp_path
+        sublime.set_timeout(self.open_view, 0)
 
     def close(self):
         global sessions
@@ -58,9 +78,9 @@ class Session:
                 title = view.name() or os.path.basename(view.file_name())
                 view.set_name(u"❗" + title)
 
-        debug("Removing temporary files on disk: %s", self.temp_dir)
+        debug("Removing temporary files on disk: %s", self.temp_path)
         os.unlink(self.temp_path)
-        os.rmdir(self.temp_dir)
+        os.rmdir(os.path.dirname(self.temp_path))
 
     def send_save(self):
         info("Saving %s", self.env['display-name'])
@@ -83,38 +103,12 @@ class Session:
                 pass
         info("Socket connection to the rsub client is broken!")
 
-    def on_done(self):
+    def open_view(self):
         global sessions
-
-        # Create a secure temporary directory, both for privacy and to allow
-        # multiple files with the same basename to be edited at once without
-        # overwriting each other.
-        try:
-            self.temp_dir = tempfile.mkdtemp(prefix='rsub-')
-        except OSError as e:
-            sublime.error_message('Failed to create rsub temporary directory! Error: %s' % e)
-            return
-
-        filename = os.path.basename(self.env['display-name'].split(':')[-1])
-        self.temp_path = os.path.join(self.temp_dir, filename)
-        try:
-            temp_file = open(self.temp_path, "wb+")
-            temp_file.write(self.file)
-            temp_file.close()
-        except IOError as e:
-            # Remove the file if it exists.
-            if os.path.exists(self.temp_path):
-                os.remove(self.temp_path)
-            try:
-                os.rmdir(self.temp_dir)
-            except OSError:
-                pass
-
-            sublime.error_message('Failed to write to temp file! Error: %s' % str(e))
 
         # create new window if needed
         if len(sublime.windows()) == 0:
-            sublime.run_command("new_window")
+            sublime.run_command('new_window')
 
         line = self.env.get('selection', 0)
 
